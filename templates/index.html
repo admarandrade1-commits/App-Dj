@@ -5,63 +5,88 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>App-DJ</title>
     <style>
-        body { font-family: Arial, sans-serif; background: #1a1a2e; color: #eee; max-width: 800px; margin: 0 auto; padding: 20px; }
-        h1 { color: #e94560; text-align: center; }
-        .current { background: #16213e; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
-        .song { background: #16213e; padding: 15px; border-radius: 8px; margin: 10px 0; display: flex; justify-content: space-between; align-items: center; }
-        button { background: #e94560; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: Arial, sans-serif; background: #1a1a2e; color: #eee; padding: 20px; }
+        h1 { color: #e94560; text-align: center; font-size: 2em; margin-bottom: 30px; }
+        h2 { color: #e94560; margin-bottom: 15px; }
+        .container { max-width: 900px; margin: 0 auto; }
+        .current { background: #16213e; padding: 20px; border-radius: 10px; margin-bottom: 30px; border-left: 4px solid #e94560; }
+        .current p { margin: 5px 0; }
+        .songs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 15px; margin-bottom: 30px; }
+        .song { background: #16213e; padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; transition: background 0.2s; }
+        .song:hover { background: #1f2b4a; }
+        .song-info { flex: 1; }
+        .song-info strong { font-size: 1.1em; }
+        .song-info small { color: #aaa; display: block; margin-top: 4px; }
+        .song-actions { display: flex; align-items: center; gap: 10px; }
+        .votes { font-size: 1.3em; font-weight: bold; color: #e94560; min-width: 30px; text-align: center; }
+        button { background: #e94560; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; font-size: 0.95em; }
         button:hover { background: #c73652; }
-        .votes { font-size: 1.2em; font-weight: bold; color: #e94560; }
-        .recommend-btn { display: block; margin: 20px auto; padding: 12px 24px; font-size: 1.1em; }
-        .recommended { background: #0f3460; padding: 15px; border-radius: 8px; margin: 10px 0; }
+        .recommend-btn { display: block; width: 100%; padding: 15px; font-size: 1.1em; margin-bottom: 20px; border-radius: 8px; }
+        .recommendations { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; }
+        .recommended { background: #0f3460; padding: 15px; border-radius: 8px; border-left: 4px solid #4ecca3; }
+        .recommended strong { color: #4ecca3; }
+        .tag { display: inline-block; background: #e94560; color: white; font-size: 0.75em; padding: 2px 8px; border-radius: 10px; margin-left: 8px; }
     </style>
 </head>
 <body>
+<div class="container">
     <h1>🎧 App-DJ</h1>
 
     <div class="current">
         <h2>A tocar agora</h2>
         <p><strong>{{ current_song.title }}</strong> — {{ current_song.artist }}</p>
-        <p>BPM: {{ current_song.bpm }} | Energia: {{ current_song.energy }}</p>
+        <p>BPM: <strong>{{ current_song.bpm }}</strong> | Energia: <strong>{{ current_song.energy }}</strong></p>
     </div>
 
     <h2>Votar na próxima música</h2>
-    {% for song in songs %}
-    <div class="song" id="song-{{ song.id }}">
-        <div>
-            <strong>{{ song.title }}</strong> — {{ song.artist }}<br>
-            <small>BPM: {{ song.bpm }} | Energia: {{ song.energy }}</small>
+    <div class="songs-grid">
+        {% for song in songs %}
+        <div class="song" id="song-{{ song.id }}">
+            <div class="song-info">
+                <strong>{{ song.title }}</strong>
+                <small>{{ song.artist }} | BPM: {{ song.bpm }} | Energia: {{ song.energy }}</small>
+            </div>
+            <div class="song-actions">
+                <span class="votes" id="votes-{{ song.id }}">{{ song.votes }}</span>
+                <button onclick="vote({{ song.id }})">Votar</button>
+            </div>
         </div>
-        <div>
-            <span class="votes" id="votes-{{ song.id }}">{{ song.votes }}</span> votos
-            <button onclick="vote({{ song.id }})">Votar</button>
-        </div>
+        {% endfor %}
     </div>
-    {% endfor %}
 
-    <button class="recommend-btn" onclick="recommend()">🎲 Gerar 3 Recomendações</button>
+    <button class="recommend-btn" onclick="recommend()">🎲 Gerar 3 Recomendações compatíveis</button>
 
-    <div id="recommendations"></div>
+    <div id="recommendations" class="recommendations"></div>
+</div>
 
-    <script>
-        function vote(songId) {
-            fetch(`/vote/${songId}`, { method: "POST" })
-                .then(r => r.json())
-                .then(data => {
-                    document.getElementById(`votes-${songId}`).textContent = data.votes;
-                });
-        }
+<script>
+    function vote(songId) {
+        fetch(`/vote/${songId}`, { method: "POST" })
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById(`votes-${songId}`).textContent = data.votes;
+            });
+    }
 
-        function recommend() {
-            fetch("/recommend")
-                .then(r => r.json())
-                .then(songs => {
-                    const div = document.getElementById("recommendations");
-                    div.innerHTML = "<h2>🎵 Recomendadas</h2>" + songs.map(s =>
-                        `<div class="recommended"><strong>${s.title}</strong> — ${s.artist}<br>BPM: ${s.bpm} | Energia: ${s.energy}</div>`
-                    ).join("");
-                });
-        }
-    </script>
+    function recommend() {
+        fetch("/recommend")
+            .then(r => r.json())
+            .then(songs => {
+                const div = document.getElementById("recommendations");
+                if (songs.length === 0) {
+                    div.innerHTML = "<p>Nenhuma música compatível encontrada.</p>";
+                    return;
+                }
+                div.innerHTML = "<h2 style='margin-bottom:15px'>🎵 Recomendadas</h2>" + songs.map(s =>
+                    `<div class="recommended">
+                        <strong>${s.title}</strong><br>
+                        ${s.artist}<br>
+                        <small>BPM: ${s.bpm} | Energia: ${s.energy}</small>
+                    </div>`
+                ).join("");
+            });
+    }
+</script>
 </body>
 </html>
