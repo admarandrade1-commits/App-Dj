@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>App-DJ</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #1a1a2e; color: #eee; max-width: 800px; margin: 0 auto; padding: 20px; }
+        h1 { color: #e94560; text-align: center; }
+        .current { background: #16213e; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
+        .song { background: #16213e; padding: 15px; border-radius: 8px; margin: 10px 0; display: flex; justify-content: space-between; align-items: center; }
+        button { background: #e94560; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #c73652; }
+        .votes { font-size: 1.2em; font-weight: bold; color: #e94560; }
+        .recommend-btn { display: block; margin: 20px auto; padding: 12px 24px; font-size: 1.1em; }
+        .recommended { background: #0f3460; padding: 15px; border-radius: 8px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>🎧 App-DJ</h1>
+
+    <div class="current">
+        <h2>A tocar agora</h2>
+        <p><strong>{{ current_song.title }}</strong> — {{ current_song.artist }}</p>
+        <p>BPM: {{ current_song.bpm }} | Energia: {{ current_song.energy }}</p>
+    </div>
+
+    <h2>Votar na próxima música</h2>
+    {% for song in songs %}
+    <div class="song" id="song-{{ song.id }}">
+        <div>
+            <strong>{{ song.title }}</strong> — {{ song.artist }}<br>
+            <small>BPM: {{ song.bpm }} | Energia: {{ song.energy }}</small>
+        </div>
+        <div>
+            <span class="votes" id="votes-{{ song.id }}">{{ song.votes }}</span> votos
+            <button onclick="vote({{ song.id }})">Votar</button>
+        </div>
+    </div>
+    {% endfor %}
+
+    <button class="recommend-btn" onclick="recommend()">🎲 Gerar 3 Recomendações</button>
+
+    <div id="recommendations"></div>
+
+    <script>
+        function vote(songId) {
+            fetch(`/vote/${songId}`, { method: "POST" })
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById(`votes-${songId}`).textContent = data.votes;
+                });
+        }
+
+        function recommend() {
+            fetch("/recommend")
+                .then(r => r.json())
+                .then(songs => {
+                    const div = document.getElementById("recommendations");
+                    div.innerHTML = "<h2>🎵 Recomendadas</h2>" + songs.map(s =>
+                        `<div class="recommended"><strong>${s.title}</strong> — ${s.artist}<br>BPM: ${s.bpm} | Energia: ${s.energy}</div>`
+                    ).join("");
+                });
+        }
+    </script>
+</body>
+</html>
