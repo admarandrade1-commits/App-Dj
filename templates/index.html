@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>App-DJ</title>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: Arial, sans-serif; background: #1a1a2e; color: #eee; padding: 20px; }
@@ -26,12 +27,45 @@
         .recommendations { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; }
         .recommended { background: #0f3460; padding: 15px; border-radius: 8px; border-left: 4px solid #4ecca3; }
         .recommended strong { color: #4ecca3; }
-        .tag { display: inline-block; background: #e94560; color: white; font-size: 0.75em; padding: 2px 8px; border-radius: 10px; margin-left: 8px; }
+
+        /* Modal */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+        .modal { background: #16213e; padding: 40px; border-radius: 15px; text-align: center; border: 2px solid #e94560; width: 350px; }
+        .modal h2 { color: #e94560; margin-bottom: 10px; font-size: 1.8em; }
+        .modal p { color: #aaa; margin-bottom: 25px; }
+        .modal input { width: 100%; padding: 12px; border-radius: 8px; border: 2px solid #e94560; background: #1a1a2e; color: #eee; font-size: 1em; margin-bottom: 15px; outline: none; }
+        .modal button { width: 100%; padding: 12px; font-size: 1.1em; border-radius: 8px; }
+
+        /* Painel utilizadores */
+        .painel { background: #16213e; padding: 20px; border-radius: 10px; margin-bottom: 30px; border-left: 4px solid #4ecca3; }
+        .painel h2 { color: #4ecca3; margin-bottom: 15px; }
+        .utilizador { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: #1a1a2e; border-radius: 8px; margin-bottom: 8px; }
+        .utilizador .nome { font-weight: bold; color: #eee; }
+        .utilizador .voto { color: #4ecca3; font-size: 0.9em; }
+        .utilizador .sem-voto { color: #666; font-size: 0.9em; font-style: italic; }
+        .online-badge { display: inline-block; width: 8px; height: 8px; background: #4ecca3; border-radius: 50%; margin-right: 8px; }
     </style>
 </head>
 <body>
+
+<!-- Modal nome -->
+<div class="modal-overlay" id="modal">
+    <div class="modal">
+        <h2>🎧 App-DJ</h2>
+        <p>Escreve o teu nome para entrar e votar!</p>
+        <input type="text" id="input-nome" placeholder="O teu nome..." maxlength="30" />
+        <button onclick="entrar()">Entrar</button>
+    </div>
+</div>
+
 <div class="container">
     <h1>🎧 App-DJ</h1>
+
+    <!-- Painel utilizadores online -->
+    <div class="painel">
+        <h2>👥 Online (<span id="total-online">0</span>)</h2>
+        <div id="lista-utilizadores"></div>
+    </div>
 
     <div class="current">
         <h2>A tocar agora</h2>
@@ -56,18 +90,55 @@
     </div>
 
     <button class="recommend-btn" onclick="recommend()">🎲 Gerar 3 Recomendações compatíveis</button>
-
     <div id="recommendations" class="recommendations"></div>
 </div>
 
 <script>
-    function vote(songId) {
-        fetch(`/vote/${songId}`, { method: "POST" })
-            .then(r => r.json())
-            .then(data => {
-                document.getElementById(`votes-${songId}`).textContent = data.votes;
-            });
+    let nomeUtilizador = null;
+    const socket = io();
+
+    function entrar() {
+        const nome = document.getElementById("input-nome").value.trim();
+        if (!nome) return;
+        nomeUtilizador = nome;
+        document.getElementById("modal").style.display = "none";
+        socket.emit("entrar", { nome: nome });
     }
+
+    document.getElementById("input-nome").addEventListener("keypress", function(e) {
+        if (e.key === "Enter") entrar();
+    });
+
+    function vote(songId) {
+        if (!nomeUtilizador) return;
+        fetch(`/vote/${songId}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ nome: nomeUtilizador })
+        });
+    }
+
+    socket.on("votos_atualizados", function(votos) {
+        for (const [id, count] of Object.entries(votos)) {
+            const el = document.getElementById(`votes-${id}`);
+            if (el) el.textContent = count;
+        }
+    });
+
+    socket.on("usuarios_atualizados", function(usuarios) {
+        document.getElementById("total-online").textContent = usuarios.length;
+        const lista = document.getElementById("lista-utilizadores");
+        if (usuarios.length === 0) {
+            lista.innerHTML = "<p style='color:#666'>Nenhum utilizador online.</p>";
+            return;
+        }
+        lista.innerHTML = usuarios.map(u => `
+            <div class="utilizador">
+                <span class="nome"><span class="online-badge"></span>${u.nome}</span>
+                ${u.voto ? `<span class="voto">🎵 ${u.voto}</span>` : `<span class="sem-voto">Ainda não votou</span>`}
+            </div>
+        `).join("");
+    });
 
     function recommend() {
         fetch("/recommend")

@@ -1,13 +1,16 @@
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, request
+from flask_socketio import SocketIO, emit, disconnect
 from dotenv import load_dotenv
 import openpyxl
 import os
 import random
 
 load_dotenv()
-
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
+socketio = SocketIO(app)
+
+usuarios_online = {}
 
 def load_songs():
     wb = openpyxl.load_workbook("songs.xlsx")
@@ -37,10 +40,32 @@ def get_songs():
 
 @app.route("/vote/<int:song_id>", methods=["POST"])
 def vote(song_id):
+    nome = request.json.get("nome") if request.json else None
     for song in songs:
         if song["id"] == song_id:
             song["votes"] += 1
-    return jsonify({"success": True, "votes": next(s["votes"] for s in songs if s["id"] == song_id)})
+            titulo = song["title"]
+    if nome and nome in usuarios_online:
+        usuarios_online[nome]["voto"] = titulo
+    votes_atualizados = {s["id"]: s["votes"] for s in songs}
+    socketio.emit("votos_atualizados", votes_atualizados)
+    socketio.emit("usuarios_atualizados", list(usuarios_online.values()))
+    return jsonify({"success": True})
+
+@socketio.on("entrar")
+def entrar(data):
+    nome = data.get("nome")
+    if nome:
+        usuarios_online[nome] = {"nome": nome, "voto": None, "sid": request.sid}
+        socketio.emit("usuarios_atualizados", list(usuarios_online.values()))
+
+@socketio.on("disconnect")
+def desconectar():
+    for nome, info in list(usuarios_online.items()):
+        if info["sid"] == request.sid:
+            del usuarios_online[nome]
+            break
+    socketio.emit("usuarios_atualizados", list(usuarios_online.values()))
 
 @app.route("/recommend")
 def recommend():
@@ -53,4 +78,4 @@ def recommend():
     return jsonify(recommended)
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    socketio.run(app, debug=True, host="0.0.0.0")
